@@ -1,1 +1,1 @@
-# electricATV_UI
+Contains only UI (HTML, JS, CSS)

@@ -1,0 +1,1129 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+  <title>ATV</title>
+  <meta charset="utf-8">
+  <meta name="theme-color" content="#3e3f42">
+  <script type="text/javascript" src="datalog_1_.json"></script>
+  <script type="text/javascript" src="uisettings.json"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <script src="lib/jquery.js"></script>
+  <link rel="stylesheet" href="lib/jquery_mobile.css">
+  <script src="lib/jquery_mobile.js"></script>
+  <script src="lib/chart.js"></script>
+  <link rel='shortcut icon' type='image/x-icon' href='/favicon.ico' />
+  <style>
+	#speedText{
+		font-family: 'Arial';
+		font-size: 4em;
+		text-align:center;
+	}
+	#charge{
+		font-size: 2.3em;
+		text-align:center;
+	}
+	#time_txt,#trip_txt{
+		font-family: 'Arial';
+		font-size: 2.7em;
+		text-align:center;
+	}
+	#warningText{
+		font-family: 'Arial';
+		font-size: 3em;
+		text-align:center;
+		font-weight: bold;
+		color: rgb(255, 255, 255);
+	}
+	#pactitle, #gpsStatus, #localStorageStatus, #masterLog, #tempLog{
+		font-size: 1.8em;
+		font-family: 'Arial';
+	}
+	#chargeMin{
+		float: right;
+		font-family: 'Arial';
+		font-size: 2.7em;
+	}
+	tr, th{
+		font-size: 1.2em;
+		font-family: 'Arial';
+	}
+	#gpsLog, #masterErrorLog{
+		    overflow-y: scroll;
+			height: 200px !important;
+	}
+	.sideByside, .ui-block-a {
+    padding-right: 6px;
+	}
+	.sideByside, .ui-block-b {
+    padding-left: 6px;
+	}
+	.phaseNum {
+	font-size: 1.3em;
+	font-family: 'Arial';
+	font-weight: bold;
+	}
+	thead th,
+	tbody tr:last-child {
+    border-bottom: 1px solid #ffffff;
+    border-bottom: 1px solid rgba(0,0,0,.1);
+}
+	tbody th,
+	tbody td {
+    border-bottom: 1px solid #ffffff;
+    border-bottom: 1px solid rgba(0,0,0,.05);
+}
+	tbody tr:last-child th,
+	tbody tr:last-child td {
+    border-bottom: 0;
+}
+	tbody tr:nth-child(odd) td,
+	tbody tr:nth-child(odd) th {
+    background-color: #eaecef;
+    background-color: rgba(234,236,239,1);
+}
+
+@media ( min-width: 10em ) {
+    /* Show the table header rows and set all cells to display: table-cell */
+    .my-custom-breakpoint td,
+    .my-custom-breakpoint th,
+    .my-custom-breakpoint tbody th,
+    .my-custom-breakpoint tbody td,
+    .my-custom-breakpoint thead td,
+    .my-custom-breakpoint thead th {
+        display: table-cell;
+        margin: 0;
+    }
+    /* Hide the labels in each cell */
+    .my-custom-breakpoint td .ui-table-cell-label,
+    .my-custom-breakpoint th .ui-table-cell-label {
+        display: none;
+    }
+}	
+  </style>
+  <script>
+  var time = 0; //current time
+  var chargeTxtPeriod = 0;
+  var voltageArray = [];
+  var speed = 0; //current speed
+  var Lat1 = 0; //variables for geolocation
+  var Lat2 = 0; //variables for geolocation
+  var Lon1 = 0; //variables for geolocation
+  var Lon2 = 0; //variables for geolocation
+  var turn = 0; //variables for geolocation
+  var time_1 = 0; //first timestamp for geolocation
+  var time_2 = 0; //second timestamp for geolocation
+  var trip = 0; //travelled distance
+  var charge = 0; //charge flag
+  var chargePerc = 0;
+  var voltageWarning = [];
+  var voltageAlarm = [];
+  var volt_avg = 0;
+  var charge_canvas_line_hide = false; //hide history chart
+  var charge_canvas_level_hide = false //hide current voltagelevel chart
+  var time_hide = false; //hide time
+  var trip_hide = false; //hide trip
+  var trip_btn_hide = false; //hide trip reset button
+  var themeDark = false; // False = light. True = dark.
+  var loadSetting_1_Value = ""; //variables for uisettings
+  var loadSetting_2_Value = ""; //variables for uisettings
+  var loadSetting_3_Value = ""; //variables for uisettings
+  var loadSetting_4_Value = ""; //variables for uisettings
+  var loadSetting_5_Value = ""; //variables for uisettings
+  var loadSetting_6_Value = ""; //variables for uisettings
+  var loadSetting_7_Value = "";
+  var loadSetting_8_Value = "";
+  var cellCount = 7;
+  var speechSynthesisEnabled = false;
+  var speechAnnounceTimeout = 10;
+  var countSeconds = 0;
+  var chargePhase = 0;
+  var phase1V, phase1C, phase2V, phase2C, phase3V, phase3C, phase4V, phase4C, phase5V, phase5C, phase0V, phase0C = 0;
+  var pointData = [];
+  var pointTime = [];
+  var measuredVoltage = 0;
+  var measuredCurrent = 0;
+  var errorLogTxt = "";
+  var chargeStatus = [];
+  var fullyCharged = false;
+  var slave1Status = 0;
+  var slave2Status = 0;
+  var motorTemp = 0;
+  var slaveTemp = 0;
+  var batteryTemp1 = 0;
+  var batteryTemp2 = 0;
+  var batteryTemp3 = 0;
+  var temperatures = [];
+  var temperaturesMax = [];
+  
+	var loc = window.location.href+'';
+	if (loc.indexOf('http://')==0){				//redirects to https from http
+    	window.location.href = loc.replace('http://','https://');
+	}
+
+  
+  $(document).ready(function() {
+	if (typeof(Storage) !== "undefined") {
+		trip = localStorage.getItem("tripValue");
+		pointData[0] = localStorage.getItem("p0Data");
+		pointData[1] = localStorage.getItem("p1Data");
+		pointData[2] = localStorage.getItem("p2Data");
+		pointData[3] = localStorage.getItem("p3Data");
+		pointData[4] = localStorage.getItem("p4Data");
+		pointData[5] = localStorage.getItem("p5Data");
+		pointData[6] = localStorage.getItem("p6Data");
+		pointData[7] = localStorage.getItem("p7Data");
+		pointData[8] = localStorage.getItem("p8Data");
+		pointData[9] = localStorage.getItem("p9Data");
+		pointData[10] = localStorage.getItem("p10Data");
+		pointData[11] = localStorage.getItem("p11Data");
+		
+		pointTime[0] = localStorage.getItem("p0Time");
+		pointTime[1] = localStorage.getItem("p1Time");
+		pointTime[2] = localStorage.getItem("p2Time");
+		pointTime[3] = localStorage.getItem("p3Time");
+		pointTime[4] = localStorage.getItem("p4Time");
+		pointTime[5] = localStorage.getItem("p5Time");
+		pointTime[6] = localStorage.getItem("p6Time");
+		pointTime[7] = localStorage.getItem("p7Time");
+		pointTime[8] = localStorage.getItem("p8Time");
+		pointTime[9] = localStorage.getItem("p9Time");
+		pointTime[10] = localStorage.getItem("p10Time");
+		pointTime[11] = localStorage.getItem("p11Time");
+	} else {
+		var today = new Date();
+		var errorTime = addZero(today.getHours()) + ":" + addZero(today.getMinutes());
+		//$('#localStorageStatus').append(errorTime + ' - ERROR (Your browser does not support Web Storage) &#13;&#10;');
+	}  
+	
+	$("#warningText").hide();
+	
+  	$.getJSON('uisettings.json', function(setting) {  		//read and apply settings from uisettings.json
+  		loadSetting_1_Value = setting.charge_line_switch;			
+  		loadSetting_2_Value = setting.charge_level_switch;
+  		loadSetting_3_Value = setting.time_switch;
+  		loadSetting_4_Value = setting.trip_switch;
+		loadSetting_5_Value = setting.theme_value;
+		loadSetting_6_Value = setting.cell_count;
+		loadSetting_7_Value = setting.speech_switch;
+		loadSetting_8_Value = setting.speech_Timeout;
+  		
+		speechAnnounceTimeout = loadSetting_8_Value * 60;
+		$("#speechTime").val(loadSetting_8_Value);
+		
+  		if (loadSetting_2_Value == "on") {
+  			charge_canvas_level_hide = false;
+  			$("#myChart").show();
+  			$("#charge_canvas_level_btn").prop('checked', true);
+  			$("#charge_canvas_level_btn").flipswitch("refresh");
+  		}
+		else
+		{
+			charge_canvas_level_hide = true;
+			$("#myChart").hide();
+		}
+		if (loadSetting_1_Value == "on") {
+  			charge_canvas_line_hide = false;
+  			$("#myline").show();
+  			$("#charge_canvas_line_btn").prop('checked', true);
+  			$("#charge_canvas_line_btn").flipswitch("refresh");
+  		}
+		else
+		{
+			charge_canvas_line_hide = true;
+			$("#myline").hide();
+		}
+  		if (loadSetting_3_Value == "on") {
+  			time_hide = false;
+  			$("#time_txt").show();
+  			$("#time_btn").prop('checked', true);
+  			$("#time_btn").flipswitch("refresh");
+  		}
+		else
+		{
+			time_hide = true;
+			$("#time_txt").hide();
+		}
+  		if (loadSetting_4_Value == "on") {
+  			trip_hide = false;
+  			$("#trip_txt").show();
+  			$("#trip_btn").prop('checked', true);
+  			$("#trip_btn").flipswitch("refresh");
+			$("#reset_trip_btn").show();	
+			trip_btn_hide = false;
+  		}
+		else
+		{
+			trip_hide = true;
+			$("#trip_txt").hide();
+			$("#reset_trip_btn").hide();
+		}
+		if(loadSetting_5_Value == "light")
+		{
+			themeDark = false;
+			$("#light").prop("checked", true).trigger("click");	
+		}
+		else
+		{
+			themeDark = true;
+			$("#dark").prop("checked", true).trigger("click");
+			window.location.replace('https://192.168.240.1/sd/index_b.html');
+		}
+		if(loadSetting_6_Value == 7)
+		{
+			cellCount = 7;
+			$("#cellCount_7").prop("checked", true).trigger("click");
+		} else {
+			cellCount = 14;
+			$("#cellCount_14").prop("checked", true).trigger("click");
+		}
+		
+		if (loadSetting_7_Value == "on") {
+  			speechSynthesisEnabled = true;
+  			$("#speech_btn").prop('checked', true);
+  			$("#speech_btn").flipswitch("refresh");
+			
+			var speechSyn = new SpeechSynthesisUtterance('Speech synthesis enabled');
+			  speechSyn.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == 'Whisper'; })[0];
+			  speechSyn.rate = 0.75;
+			  speechSynthesis.speak(speechSyn);
+  		}
+		else
+		{
+			speechSynthesisEnabled = false;
+		}
+		draw();		//generate graphs
+  	});
+  	initGeo();   //read geolocation
+
+	$("#reset_trip_btn").click(function(){		//trip reset button function
+	  trip = 0;
+	  localStorage.setItem("tripValue", trip);
+	});
+	
+	$.getJSON('input.json', function(phase) {  		//read and apply settings from uisettings.json		
+		$("#p1Voltage").val(phase.p1V);
+		$("#p1Current").val(phase.p1C);
+		$("#p2Voltage").val(phase.p2V);
+		$("#p2Current").val(phase.p2C);
+		$("#p3Voltage").val(phase.p3V);
+		$("#p3Current").val(phase.p3C);
+		$("#p4Voltage").val(phase.p4V);
+		$("#p4Current").val(phase.p4C);
+		$("#p5Voltage").val(phase.p5V);
+		$("#p5Current").val(phase.p5C);
+		$("#p0Voltage").val(phase.p0V);
+		$("#p0Current").val(phase.p0C);
+		
+		phase0V = phase.p0V;
+		phase1V = phase.p1V;
+		phase2V = phase.p2V;
+		phase3V = phase.p3V;
+		phase4V = phase.p4V;
+		phase5V = phase.p5V;
+		
+		phase0C = phase.p0C;
+		phase1C = phase.p1C;
+		phase2C = phase.p2C;
+		phase3C = phase.p3C;
+		phase4C = phase.p4C;
+		phase5C = phase.p5C;
+		
+		});
+  });
+
+  function load() {
+  	$.getJSON('datalog_1_.json', function(output) {		//read and apply values from datalog_1_.json
+  		//console.log("load");
+		voltageArray[0] = output.v1;
+  		voltageArray[1] = output.v2;
+  		voltageArray[2] = output.v3;
+  		voltageArray[3] = output.v4;
+  		voltageArray[4] = output.v5;
+  		voltageArray[5] = output.v6;
+  		voltageArray[6] = output.v7;
+  		voltageArray[7] = output.v8;
+  		voltageArray[8] = output.v9;
+  		voltageArray[9] = output.v10;
+  		voltageArray[10] = output.v11;
+  		voltageArray[11] = output.v12;
+  		voltageArray[12] = output.v13;
+  		voltageArray[13] = output.v14;
+		charge = output.isCharging;		
+		chargePhase = output.cPhase;
+		measuredCurrent = output.meaCur;
+		measuredVoltage = output.meaVol;
+		slave1Status = output.sStatus1;
+		slave2Status = output.sStatus2;
+		
+		if(output.sT1 > slaveTemp) temperaturesMax[0] = output.sT1;
+		if(output.motor > motorTemp) temperaturesMax[1] = output.motor;
+		if(output.tB1 > batteryTemp1) temperaturesMax[2] = output.tB1;
+		if(output.tB2 > batteryTemp2) temperaturesMax[3] = output.tB2;
+		if(output.tB3 > batteryTemp3) temperaturesMax[4] = output.tB3;				
+		motorTemp = output.motor;
+		slaveTemp = output.sT1;
+		batteryTemp1 = output.tB1;
+  		batteryTemp2 = output.tB2;
+  		batteryTemp3 = output.tB3;
+		
+		chargeStatus[0] = (slave1Status & 1) / 1;
+		chargeStatus[1] = (slave1Status & 2) / 2;
+		chargeStatus[2] = (slave1Status & 4) / 4;
+		chargeStatus[3] = (slave1Status & 8) / 8;
+		chargeStatus[4] = (slave1Status & 16) / 16;
+		chargeStatus[5] = (slave1Status & 32) / 32;
+		chargeStatus[6] = (slave1Status & 64) / 64;
+		chargeStatus[7] = (slave2Status & 1) / 1;
+		chargeStatus[8] = (slave2Status & 2) / 2;
+		chargeStatus[9] = (slave2Status & 4) / 4;
+		chargeStatus[10] = (slave2Status & 8) / 8;
+		chargeStatus[11] = (slave2Status & 16) / 16;
+		chargeStatus[12] = (slave2Status & 32) / 32;
+		chargeStatus[13] = (slave2Status & 64) / 64;
+  	});
+  }
+
+  function draw() {	  //draw charts, documentation: http://www.chartjs.org/docs/latest/
+	if(cellCount == 7){
+	ctx = document.getElementById("myChart").getContext("2d");
+  	myChart = new Chart(ctx, {
+  		type: 'bar',
+  		data: {
+  			labels: ["Cell 1", "Cell 3", "Cell 5", "Cell 7", "Cell 9", "Cell 11", "Cell 13"],
+  			datasets: [{
+  				label: 'Cell voltage',
+  				data: [3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8],
+  				backgroundColor: [
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)'
+						
+					],
+  				borderColor: [
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)'
+					],
+  				borderWidth: 1
+				}]
+  		},
+		options: {
+  			scales: {
+  				yAxes: [{
+  					ticks: {
+						fontColor: "white",
+  						beginAtZero: true,
+  						min: 2.8,
+  						max: 3.8,
+  						stepValue: 0.01
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}],
+				xAxes: [{
+  					ticks: {
+						fontColor: "white"
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}]
+
+  			},
+			legend: {
+            			display: false
+        		}
+
+  		}
+  		
+  	});
+  	chargeline = document.getElementById('myline').getContext('2d');
+  	myline = new Chart(chargeline, {
+  		type: 'line',
+  		data: {
+			labels: [pointTime[0], pointTime[1], pointTime[2], pointTime[3], pointTime[4], pointTime[5], pointTime[6], pointTime[7], pointTime[8], pointTime[9], pointTime[10], pointTime[11]],
+  			datasets: [{
+  				label: 'Average voltage',
+				lineTension: 0,
+  				data: [pointData[0], pointData[1], pointData[2], pointData[3], pointData[4], pointData[5], pointData[6], pointData[7], pointData[8], pointData[9], pointData[10], pointData[11]],
+  				backgroundColor: "rgba(153,255,51,0.6)"
+			}, ]
+  		},
+  		
+		options: {
+  			scales: {
+  				yAxes: [{
+  					ticks: {
+						fontColor: "white",
+  						beginAtZero: true,
+  						min: 2.8,
+  						max: 3.8,
+  						stepValue: 0.01
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}],
+				xAxes: [{
+  					ticks: {
+						fontColor: "white"
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}]
+
+  			},
+			legend: {
+            			display: false
+        				}
+  		}
+	
+  	});
+		
+	} else {
+	ctx = document.getElementById("myChart").getContext("2d");
+  	myChart = new Chart(ctx, {
+  		type: 'bar',
+  		data: {
+  			labels: ["Cell 1", "Cell 2", "Cell 3", "Cell 4", "Cell 5", "Cell 6", "Cell 7", "Cell 8", "Cell 9", "Cell 10", "Cell 11", "Cell 12", "Cell 13", "Cell 14"],
+  			datasets: [{
+  				label: 'Cell voltage',
+  				data: [3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8],
+  				backgroundColor: [
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)',
+						'rgba(255, 99, 132, 0.6)',
+						'rgba(54, 162, 235, 0.6)'
+						
+					],
+  				borderColor: [
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)',
+						'rgba(255,99,132,1)',
+						'rgba(54, 162, 235, 1)'
+					],
+  				borderWidth: 1
+				}]
+  		},
+  		options: {
+  			scales: {
+  				yAxes: [{
+  					ticks: {
+						fontColor: "white",
+  						beginAtZero: true,
+  						min: 2.8,
+  						max: 3.8,
+  						stepValue: 0.01
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}],
+				xAxes: [{
+  					ticks: {
+						fontColor: "white"
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}]
+
+  			},
+			legend: {
+            			display: false
+        		}
+
+  		}
+  	});
+  	chargeline = document.getElementById('myline').getContext('2d');
+  	myline = new Chart(chargeline, {
+  		type: 'line',
+  		data: {
+  			labels: [pointTime[0], pointTime[1], pointTime[2], pointTime[3], pointTime[4], pointTime[5], pointTime[6], pointTime[7], pointTime[8], pointTime[9], pointTime[10], pointTime[11]],
+  			datasets: [{
+  				label: 'Average voltage',
+				lineTension: 0,
+  				data: [pointData[0], pointData[1], pointData[2], pointData[3], pointData[4], pointData[5], pointData[6], pointData[7], pointData[8], pointData[9], pointData[10], pointData[11]],
+  				backgroundColor: "rgba(153,255,51,0.6)"
+			}, ]
+  		},
+  		options: {
+  			scales: {
+  				yAxes: [{
+  					ticks: {
+						fontColor: "white",
+  						beginAtZero: true,
+  						min: 2.8,
+  						max: 3.8,
+  						stepValue: 0.01
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}],
+				xAxes: [{
+  					ticks: {
+						fontColor: "white"
+  					},
+					gridLines: {
+  						color: "#909293"
+					}
+					}]
+
+  			},
+			legend: {
+            			display: false
+        				}
+  		}
+  	});
+	}
+  }
+  setInterval(function() {		//read datalog_1_.json and update chart values
+  	load();
+  	
+	for(var i = 0; i <= 13; i++)
+	{
+		if(voltageArray[i] < 3.00)
+		{
+			voltageAlarm[i] = true;
+			
+			if (voltageArray[i] < 2.85)
+			{
+				voltageWarning[i] = true;
+			} else {
+				voltageWarning[i] = false;
+			}
+		} else {
+			voltageAlarm[i] = false;
+			voltageWarning[i] = false;
+		}
+		myChart.data.datasets[0].data[i] = voltageArray[i];
+	}
+
+  	if (charge == 1) // if charge flag is true display charge's text
+	{	
+		if(chargeStatus.every(checkValues) != true)
+		{
+			if(chargeTxtPeriod == 0)
+			{
+				$("#charge").text("Charging");
+				chargeTxtPeriod = 1;
+			}
+			else if(chargeTxtPeriod == 1)
+			{
+				$("#charge").text("Charging .");
+				chargeTxtPeriod = 2;
+			}
+			else if(chargeTxtPeriod == 2)
+			{
+				$("#charge").text("Charging . .");
+				chargeTxtPeriod = 3;
+			}
+			else if(chargeTxtPeriod == 3)
+			{
+				$("#charge").text("Charging . . .");
+				chargeTxtPeriod = 0;
+			}
+			fullyCharged = false;
+		} else {
+				$("#charge").text("Fully charged");
+				fullyCharged = true;
+		}
+		for(var i = 0; i <= 13; i++)
+		{
+			if(chargeStatus[i] == 1)
+			{
+				myChart.data.datasets[0].backgroundColor[i] = "rgba(80,206,49,0.6)";
+				myChart.data.datasets[0].borderColor[i] = "rgba(80,206,49,0.6)";
+			}
+		}
+  	} else {
+		$("#charge").text(" ");
+		
+		for(var i = 0; i <= 13; i++)
+		{
+			if(i % 2 === 0)
+			{
+				myChart.data.datasets[0].backgroundColor[i] = "rgba(255, 99, 132, 0.6)";
+				myChart.data.datasets[0].borderColor[i] = "rgba(255,99,132,1)";
+			} else {
+				myChart.data.datasets[0].backgroundColor[i] = "rgba(54, 162, 235, 0.6)";
+				myChart.data.datasets[0].borderColor[i] = "rgba(54, 162, 235, 1)";
+			}
+		}
+	}
+	function checkValues(value)
+	{
+		return value == 1;
+	}
+	
+  	myChart.update();
+  	$("#time_txt").text(time);	//get current time
+	
+	if(voltageAlarm[0] || voltageAlarm[1] ||voltageAlarm[2] ||voltageAlarm[3] ||voltageAlarm[4] ||voltageAlarm[5] ||voltageAlarm[6] ||voltageAlarm[7] ||voltageAlarm[8] ||voltageAlarm[9] ||voltageAlarm[10] ||voltageAlarm[11] ||voltageAlarm[12] || voltageAlarm[13])
+	{
+		$("#warningText").show();
+		if(voltageWarning[0] || voltageWarning[1] ||voltageWarning[2] ||voltageWarning[3] ||voltageWarning[4] ||voltageWarning[5] ||voltageWarning[6] ||voltageWarning[7] ||voltageWarning[8] ||voltageWarning[9] ||voltageWarning[10] ||voltageWarning[11] ||voltageWarning[12] || voltageWarning[13])
+		{
+			$("#warningText").text("VOLTAGE WARNING");
+		} else {
+			$("#warningText").text("VOLTAGE ALARM");
+		}
+	} else {
+		$("#warningText").hide();
+	}
+	
+	if(countSeconds == speechAnnounceTimeout){
+		speechAnnounce();
+		countSeconds = 0;
+	}
+	countSeconds++;
+	
+	volt_avg = Math.round(((voltageArray[0] + voltageArray[1] + voltageArray[2] + voltageArray[3] + voltageArray[4] + voltageArray[5] + voltageArray[6] + voltageArray[7] + voltageArray[8] + voltageArray[9] + voltageArray[10] + voltageArray[11] + voltageArray[12] + voltageArray[13]) / 14)*100)/100;
+	chargePerc = Math.round(((volt_avg - 2.80)/(3.35-2.80))*100);
+	$("#chargeMin").text(chargePerc + " %");
+	var today = new Date();
+	time = addZero(today.getHours()) + ":" + addZero(today.getMinutes());
+
+	$('#motorTemptxt').html(motorTemp + ' \u2103');
+	$('#slaveTemptxt').html(slaveTemp + ' \u2103');
+	$('#batteryTemp1txt').html(batteryTemp1 + ' \u2103');
+	$('#batteryTemp2txt').html(batteryTemp2 + ' \u2103');
+	$('#batteryTemp3txt').html(batteryTemp3 + ' \u2103');
+	$('#slaveTempMax').html(temperaturesMax[0] + ' \u2103');
+	$('#motorTempMax').html(temperaturesMax[1] + ' \u2103');
+	$('#batteryTemp1Max').html(temperaturesMax[2] + ' \u2103');
+	$('#batteryTemp2Max').html(temperaturesMax[3] + ' \u2103');
+	$('#batteryTemp3Max').html(temperaturesMax[4] + ' \u2103');
+
+	if(charge == 1 && fullyCharged != true)
+	{
+		if(chargePhase == 0)
+		{
+			$("#phaseTxt").html("0");
+			$("#pacSetTo").html(phase0V + "V, " + phase0C + "A");
+		}
+		if(chargePhase == 1)
+		{
+			$("#phaseTxt").html("1");
+			$("#pacSetTo").html(phase1V + "V, " + phase1C + "A");
+		}
+		if(chargePhase == 2)
+		{
+			$("#phaseTxt").html("2");
+			$("#pacSetTo").html(phase2V + "V, " + phase2C + "A");
+		}
+		if(chargePhase == 3)
+		{
+			$("#phaseTxt").html("3");
+			$("#pacSetTo").html(phase3V + "V, " + phase3C + "A");
+		}
+		if(chargePhase == 4)
+		{
+			$("#phaseTxt").html("4");
+			$("#pacSetTo").html(phase4V + "V, " + phase4C + "A");
+		}
+		if(chargePhase == 5)
+		{
+			$("#phaseTxt").html("5");
+			$("#pacSetTo").html(phase5V + "V, " + phase5C + "A");
+		}
+		$("#pacMeasured").text(measuredVoltage + "V, " + measuredCurrent + "A");
+	} else {
+			$("#phaseTxt").text("Phase: OFF ");
+			$("#pacCurrent").text("0A");
+			$("#pacVoltage").text("0V, ");
+			$("#pacVoltageMeasured").text("0V, ");
+			$("#pacCurrentMeasured").text("0A");
+		}
+  }, 1000);
+  
+  function speechAnnounce() {
+	if(speechSynthesisEnabled)
+	{
+		if(voltageAlarm[0] || voltageAlarm[1] ||voltageAlarm[2] ||voltageAlarm[3] ||voltageAlarm[4] ||voltageAlarm[5] ||voltageAlarm[6] ||voltageAlarm[7] ||voltageAlarm[8] ||voltageAlarm[9] ||voltageAlarm[10] ||voltageAlarm[11] ||voltageAlarm[12] || voltageAlarm[13])
+		{
+		var voltWarning = 'Low voltage in following cells:';
+		
+		  if(voltageAlarm[0]) voltWarning = voltWarning + ' one, ';
+		  if(voltageAlarm[1]) voltWarning = voltWarning + ' two, ';
+		  if(voltageAlarm[2]) voltWarning = voltWarning + ' three, ';
+		  if(voltageAlarm[3]) voltWarning = voltWarning + ' four, ';
+		  if(voltageAlarm[4]) voltWarning = voltWarning + ' five, ';
+		  if(voltageAlarm[5]) voltWarning = voltWarning + ' six, ';
+		  if(voltageAlarm[6]) voltWarning = voltWarning + ' seven, ';
+		  if(voltageAlarm[7]) voltWarning = voltWarning + ' eight, ';
+		  if(voltageAlarm[8]) voltWarning = voltWarning + ' nine, ';
+		  if(voltageAlarm[9]) voltWarning = voltWarning + ' ten, ';
+		  if(voltageAlarm[10]) voltWarning = voltWarning + ' eleven, ';
+		  if(voltageAlarm[11]) voltWarning = voltWarning + ' twelve, ';
+		  if(voltageAlarm[12]) voltWarning = voltWarning + ' thirteen, ';
+		  if(voltageAlarm[13]) voltWarning = voltWarning + ' fourteen ';	  
+		  var warningSpeech = new SpeechSynthesisUtterance(voltWarning);
+		  warningSpeech.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == 'Whisper'; })[0];
+		  warningSpeech.rate = 0.75;
+		  speechSynthesis.speak(warningSpeech);
+		}
+	}
+  }
+  setInterval(function() {		//calculate average voltage value from cells get time stamp	
+  	addData(myline, time, volt_avg);
+	localStorage.setItem("tripValue", trip);
+	localStorage.setItem("p0Data", myline.data.datasets[0].data[0]);
+	localStorage.setItem("p0Time", myline.data.labels[0]);
+	localStorage.setItem("p1Data", myline.data.datasets[0].data[1]);
+	localStorage.setItem("p1Time", myline.data.labels[1]);
+	localStorage.setItem("p2Data", myline.data.datasets[0].data[2]);
+	localStorage.setItem("p2Time", myline.data.labels[2]);
+	localStorage.setItem("p3Data", myline.data.datasets[0].data[3]);
+	localStorage.setItem("p3Time", myline.data.labels[3]);
+	localStorage.setItem("p4Data", myline.data.datasets[0].data[4]);
+	localStorage.setItem("p4Time", myline.data.labels[4]);
+	localStorage.setItem("p5Data", myline.data.datasets[0].data[5]);
+	localStorage.setItem("p5Time", myline.data.labels[5]);
+	localStorage.setItem("p6Data", myline.data.datasets[0].data[6]);
+	localStorage.setItem("p6Time", myline.data.labels[6]);
+	localStorage.setItem("p7Data", myline.data.datasets[0].data[7]);
+	localStorage.setItem("p7Time", myline.data.labels[7]);
+	localStorage.setItem("p8Data", myline.data.datasets[0].data[8]);
+	localStorage.setItem("p8Time", myline.data.labels[8]);
+	localStorage.setItem("p9Data", myline.data.datasets[0].data[9]);
+	localStorage.setItem("p9Time", myline.data.labels[9]);
+	localStorage.setItem("p10Data", myline.data.datasets[0].data[10]);
+	localStorage.setItem("p10Time", myline.data.labels[10]);
+	localStorage.setItem("p11Data", myline.data.datasets[0].data[11]);
+	localStorage.setItem("p11Time", myline.data.labels[11]);
+  }, 300000); //10000
+
+  function addZero(i) {		//add zero to clock time 
+  	if (i < 10) {
+  		i = "0" + i;
+  	}
+  	return i;
+  }
+	setInterval(function(){
+	$.get('errorlog.txt', function(data) {
+   		errorLogTxt = data;
+	}, 'text');
+
+	var today = new Date();
+	var errorTime = addZero(today.getHours()) + ":" + addZero(today.getMinutes());
+	if(errorLogTxt != "")
+	{
+		$('#masterErrorLog').append(errorTime + ' ' + errorLogTxt + '&#13;&#10;');
+	}
+	},7000)
+
+  function addData(chart, label, data) {		
+  	chart.data.labels.push(label);
+  	chart.data.datasets.forEach((dataset) => {
+  		dataset.data.push(data);
+  	});
+  	chart.data.labels.shift();
+  	chart.data.datasets.forEach((dataset) => {
+  		dataset.data.shift();
+  	});
+  	chart.update();
+  }
+
+  function error(err) {
+	var today = new Date();
+	var errorTime = addZero(today.getHours()) + ":" + addZero(today.getMinutes());
+	$('#gpsLog').append(errorTime + ' - ERROR(' + err.code + '): ' + err.message + '&#13;&#10;');
+  }
+
+  function initGeo() {	//update geolocation every second
+  	navigator.geolocation.watchPosition(geoLoc, error, {
+  		maximumAge: 0,
+  		timeout: 1000,
+  		enableHighAccuracy: true
+  	});
+  }
+
+  function geoLoc(location) {	//calculate travelled distance and speed 
+  	if (turn == 0) {
+  		Lat1 = location.coords.latitude;
+  		Lon1 = location.coords.longitude;
+  		var t = new Date();
+  		time_1 = t.getTime();
+  		turn = 1;
+  	} else {
+  		Lat2 = location.coords.latitude;
+  		Lon2 = location.coords.longitude;
+  		var t = new Date();
+  		time_2 = t.getTime();
+  		Lat1 = Lat1 * Math.PI / 180;
+  		Lat2 = Lat2 * Math.PI / 180;
+  		Lon1 = Lon1 * Math.PI / 180;
+  		Lon2 = Lon2 * Math.PI / 180;
+  		var radius = 6378100;
+  		var rho1 = radius * Math.cos(Lat1);
+  		var z1 = radius * Math.sin(Lat1);
+  		var x1 = rho1 * Math.cos(Lon1);
+  		var y1 = rho1 * Math.sin(Lon1);
+  		var rho2 = radius * Math.cos(Lat2);
+  		var z2 = radius * Math.sin(Lat2);
+  		var x2 = rho2 * Math.cos(Lon2);
+  		var y2 = rho2 * Math.sin(Lon2);
+  		var dot = (x1 * x2 + y1 * y2 + z1 * z2);
+  		var cos_theta = dot / (radius * radius);
+  		var theta = Math.acos(cos_theta);
+  		var distance = radius * theta;
+  		trip = trip + distance;
+  		var time_s = (time_2 - time_1) / 1000;
+  		var speed_mps = distance / time_s;
+  		speed = Math.round((speed_mps * 3600) / 1000);
+  		$("#speedText").text(speed + " km/h");
+  		turn = 0;		
+  	}
+  	$("#trip_txt").text(trip/1000 + " km ");	//update trip value
+  } 	
+
+  </script>
+  </head>
+  <body>
+	<div class="themeType" data-role="collapsible" data-collapsed="false" data-content-theme="a" data-theme="a">
+		<h1>SPEED-O-METER</h1>
+		<span id="time_txt">Time</span><span id="chargeMin"> 100% </span>
+		<p id="speedText">0 km/h</p>
+		<p id="warningText">VOLTAGE ALARM</p>
+		<p id="trip_txt">Trip</p>
+	</div>
+	<div class="themeType" data-role="collapsible" data-theme="a" data-content-theme="a">
+		<h1>Charge</h1>
+		<p id="charge"> </p>
+		<canvas id="myChart" width="400" height="400"></canvas>
+		<canvas id="myline" width="400" height="400"></canvas>
+	</div>
+	<div class="themeType" data-role="collapsible" data-content-theme="a" data-theme="a">
+		<h1>Log</h1>
+		<p id="pactitle">Charger</p>
+		<table data-role="table" data-mode="reflow" class="my-custom-breakpoint">
+		  <thead style='display:none;'>
+			<tr>
+			  <th data-priority="1">Sensor</th>
+			  <th data-priority="2">Value</th>
+			  <th data-priority="3">Max</th>
+			</tr>
+		  </thead>
+		  <tbody>
+			<tr>
+			  <td>Phase</td>
+			  <td id="phaseTxt">0</td>
+			</tr>
+			<tr>
+			  <td>Set to</td>
+			  <td id="pacSetTo">50.00V, 10.00A</td>
+			</tr>
+			<tr>
+			  <td>Measured</td>
+			  <td id="pacMeasured">50.00V, 10.00A</td>
+			</tr>
+		  </tbody>
+		</table>	
+		
+		<p id="tempLog">Temperatures</p>
+		<table data-role="table" data-mode="reflow" class="my-custom-breakpoint">
+		  <thead>
+			<tr>
+			  <th data-priority="1">Sensor</th>
+			  <th data-priority="2">Value</th>
+			  <th data-priority="3">Max</th>
+			</tr>
+		  </thead>
+		  <tbody>
+			<tr>
+			  <td>Slave</td>
+			  <td id="slaveTemptxt">Value</td>
+			  <td id="slaveTempMax">Max</td>
+			</tr>
+			<tr>
+			  <td>Motor</td>
+			  <td id="motorTemptxt">Value</td>
+			  <td id="motorTempMax">Max</td>
+			</tr>
+			<tr>
+			  <td>Front</td>
+			  <td id="batteryTemp3txt">Value</td>
+			  <td id="batteryTemp3Max">Max</td>
+			</tr>
+			<tr>
+			  <td>Left</td>
+			  <td id="batteryTemp2txt">Value</td>
+			  <td id="batteryTemp2Max">Max</td>
+			</tr>
+			<tr>
+			  <td>Right</td>
+			  <td id="batteryTemp1txt">Value</a></td>
+			  <td id="batteryTemp1Max">Max</td>
+			</tr>
+		  </tbody>
+		</table>	
+		<p id="masterLog">Master</p>
+		<textarea id="masterErrorLog" readonly rows="10" data-content-theme="a" data-theme="a"></textarea>
+		<p id="gpsStatus">GPS</p>
+		<textarea id="gpsLog" readonly rows="10" cols="70" data-content-theme="a" data-theme="a"></textarea>
+	</div>
+	<div data-role="collapsible" data-content-theme="a" data-theme="a">
+		<h1>Settings</h1>
+		<div class="themeType" data-role="collapsible" data-theme="a" data-content-theme="a">
+		<h1>Charger settings</h1>
+		<form action="input.php" method="post" data-ajax="false">
+		<p class="phaseNum">Initial phase</p>
+		<select data-theme="a" name="initialPhaseSelect">
+			<option value="0">Phase 0</option>
+			<option value="1">Phase 1</option>
+			<option value="2">Phase 2</option>
+			<option value="3">Phase 3</option>
+			<option value="4">Phase 4</option>
+			<option value="5">Phase 5</option>
+		</select>
+		<p class="phaseNum">Phase 0</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p0Voltage" data-theme="a" type="number" step="1" name="inputVoltage0" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p0Current" data-theme="a" type="number" step="1" name="inputCurrent0" value="15" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		<p class="phaseNum">Phase 1</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p1Voltage" data-theme="a" type="number" step="1" name="inputVoltage1" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p1Current" data-theme="a" type="number" step="1" name="inputCurrent1" value="15" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		<p class="phaseNum">Phase 2</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p2Voltage" data-theme="a" type="number" step="1" name="inputVoltage2" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p2Current" data-theme="a" type="number" step="1" name="inputCurrent2" value="10" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		<p class="phaseNum">Phase 3</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p3Voltage" data-theme="a" type="number" step="1" name="inputVoltage3" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p3Current" data-theme="a" type="number" step="1" name="inputCurrent3" value="7" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		<p class="phaseNum">Phase 4</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p4Voltage" data-theme="a" type="number" step="1" name="inputVoltage4" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p4Current" data-theme="a" type="number" step="1" name="inputCurrent4" value="5" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		<p class="phaseNum">Phase 5</p>
+			<fieldset class="ui-grid-a sideByside">
+				<div  class="ui-block-a">
+					<fieldset data-role="fieldcontain">
+						Voltage (V): <input id="p5Voltage" data-theme="a" type="number" step="1" name="inputVoltage5" value="56" max="72.00" min="0.00">
+					</fieldset>
+				</div>
+				<div class="ui-block-b">
+					<fieldset data-role="fieldcontain">
+						Current (A): <input id="p5Current" data-theme="a" type="number" step="1" name="inputCurrent5" value="2" max="15.00" min="0.00">
+					</fieldset>
+				</div>
+			</fieldset>
+		  <input class="inputSettings" data-theme="a" type="submit" value="Apply">
+		  <br>
+		</form>
+		</div>
+		<div class="themeType" data-role="collapsible" data-content-theme="a" data-theme="a">
+		<h1>UI Settings</h1>
+			<form action="uisettings.php" method="post" data-ajax="false">
+			  <label for="charge_canvas_line_btn">Show charge history graph:</label>
+			  <input id="charge_canvas_line_btn" data-theme="a" type="checkbox" data-role="flipswitch" name="switch_1">
+			  <label for="charge_canvas_level_btn">Show charge graph:</label>
+			  <input id="charge_canvas_level_btn" data-theme="a" type="checkbox" data-role="flipswitch" name="switch_2">
+			  <label for="time_btn">Show time:</label>
+			  <input id="time_btn" data-theme="a" type="checkbox" data-role="flipswitch" name="switch_3">
+			  <label for="trip_btn">Show trip:</label>
+			  <input id="trip_btn" data-theme="a" type="checkbox" data-role="flipswitch" name="switch_4">
+			  <label for="speech_btn">Speech synthesis:</label>
+			  <input id="speech_btn" data-theme="a" type="checkbox" data-role="flipswitch" name="switch_5">
+			  <label for="speechTime">Speech timeout (min):</label>
+			  <input id="speechTime" data-theme="a" type="number" step="1" name="speechTimeout" value="5" max="60" min="1"><br>
+			  <fieldset data-role="controlgroup" data-type="horizontal">
+				<legend>Cell count:</legend>
+				<label for="cellCount_7">7</label>
+				<input data-theme="a" type="radio" name="cellCount_switch" id="cellCount_7" value="7">
+				<label for="cellCount_14">14</label>
+				<input data-theme="a" type="radio" name="cellCount_switch" id="cellCount_14" value="14">
+			  </fieldset>	  
+			  <fieldset data-role="controlgroup" data-type="horizontal">
+				<legend>Theme:</legend>
+				<label for="dark">Dark</label>
+				<input data-theme="a" type="radio" name="theme" id="dark" value="dark">
+				<label for="light">Light</label>
+				<input data-theme="a" type="radio" name="theme" id="light" value="light">
+			  </fieldset>
+			  <button id="reset_trip_btn" data-theme="a" type="button">Reset trip</button>
+			  <input data-theme="a" type="submit" value="Apply">
+			</form>
+		</div>
+	</div>
+  </body>
+</html>
+
